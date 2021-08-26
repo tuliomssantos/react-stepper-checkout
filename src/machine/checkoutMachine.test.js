@@ -76,6 +76,64 @@ const eventConfigs = {
       }
     },
   },
+
+  GO_TO_MY_ADDRESSES: {
+    exec: async ({
+      stateMachine,
+      shared: { currentState },
+      setCurrentState,
+      setFetchAddressesCallbacks,
+      fetchAddressesMock,
+    }) => {
+      const fetchAddressesPromise = new Promise((resolve, reject) => {
+        setFetchAddressesCallbacks({ resolve, reject })
+      }).catch(() => {}) // Use catch to satisfy UnhandledPromiseRejectionWarning
+
+      fetchAddressesMock.mockReturnValueOnce(fetchAddressesPromise)
+
+      setCurrentState(
+        stateMachine.transition(currentState, {
+          type: 'GO_TO_MY_ADDRESSES',
+        })
+      )
+    },
+  },
+
+  'done.invoke.fetchAddresses': {
+    exec: async ({
+      stateMachine,
+      shared: { currentState, fetchAddressesCallbacks },
+      setCurrentState,
+    }) => {
+      if (fetchAddressesCallbacks) {
+        fetchAddressesCallbacks.resolve()
+
+        setCurrentState(
+          stateMachine.transition(currentState, {
+            type: 'done.invoke.fetchAddresses',
+          })
+        )
+      }
+    },
+  },
+
+  'error.platform.fetchAddresses': {
+    exec: async ({
+      stateMachine,
+      shared: { currentState, fetchAddressesCallbacks },
+      setCurrentState,
+    }) => {
+      if (fetchAddressesCallbacks) {
+        fetchAddressesCallbacks.reject(new Error())
+
+        setCurrentState(
+          stateMachine.transition(currentState, {
+            type: 'error.platform.fetchAddresses',
+          })
+        )
+      }
+    },
+  },
 }
 
 const orderSummary_discountCouponNotEntered_test = {
@@ -110,6 +168,26 @@ const orderSummary_inValidDiscountCoupon_test = {
   },
 }
 
+const orderSummary_fetchingAddressesModalError_test = {
+  test: ({ shared: { currentState } }) => {
+    expect(currentState.value).toMatchObject({
+      orderSummary: 'fetchingAddressesModalError',
+    })
+  },
+}
+
+const fetchingAddressesTest = {
+  test: ({ shared: { currentState } }) => {
+    expect(currentState.value).toBe('fetchingAddresses')
+  },
+}
+
+const myAddressesTest = {
+  test: ({ shared: { currentState } }) => {
+    expect(currentState.value).toBe('myAddresses')
+  },
+}
+
 const finalizeTest = {
   test: ({ shared: { currentState } }) => {
     expect(currentState.value).toBe('finalize')
@@ -126,6 +204,7 @@ describe('Checkout Machine', () => {
           on: {
             APPLY_DISCOUNT_COUPON: 'orderSummary_validatingDiscountCoupon',
             PROCEED: 'finalize',
+            GO_TO_MY_ADDRESSES: 'fetchingAddresses',
           },
         },
 
@@ -140,6 +219,18 @@ describe('Checkout Machine', () => {
         orderSummary_validDiscountCoupon: {},
 
         orderSummary_inValidDiscountCoupon: {},
+
+        orderSummary_fetchingAddressesModalError: {},
+
+        fetchingAddresses: {
+          invoke: {
+            src: 'fetchAddresses',
+            onDone: 'myAddresses',
+            onError: 'orderSummary_fetchingAddressesModalError',
+          },
+        },
+
+        myAddresses: {},
 
         finalize: {},
       },
@@ -161,6 +252,18 @@ describe('Checkout Machine', () => {
       ...orderSummary_inValidDiscountCoupon_test,
     }
 
+    testMachine.states.orderSummary_fetchingAddressesModalError.meta = {
+      ...orderSummary_fetchingAddressesModalError_test,
+    }
+
+    testMachine.states.fetchingAddresses.meta = {
+      ...fetchingAddressesTest,
+    }
+
+    testMachine.states.myAddresses.meta = {
+      ...myAddressesTest,
+    }
+
     testMachine.states.finalize.meta = {
       ...finalizeTest,
     }
@@ -174,6 +277,8 @@ describe('Checkout Machine', () => {
         plan.paths.forEach((path) => {
           it(path.description, async () => {
             const validateDiscountCouponMock = jest.fn()
+
+            const fetchAddressesMock = jest.fn()
 
             const stateMachine = createCheckoutMachine({
               validateDiscountCoupon: validateDiscountCouponMock,
@@ -191,12 +296,18 @@ describe('Checkout Machine', () => {
               shared.validatingDiscountCouponCallbacks = validatingDiscountCouponCallbacks
             }
 
+            const setFetchAddressesCallbacks = (fetchAddressesCallbacks) => {
+              shared.fetchAddressesCallbacks = fetchAddressesCallbacks
+            }
+
             await path.test({
               stateMachine,
               shared,
               setCurrentState,
               setValidatingDiscountCouponCallbacks,
               validateDiscountCouponMock,
+              setFetchAddressesCallbacks,
+              fetchAddressesMock,
             })
           })
         })

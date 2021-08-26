@@ -8,6 +8,7 @@ import { createMachine } from 'xstate'
 
 type CheckoutServices = {
   validateDiscountCoupon: () => Promise<any>
+  fetchAddresses: () => Promise<any>
 }
 
 export const createCheckoutMachine = (services: CheckoutServices) =>
@@ -39,11 +40,25 @@ export const createCheckoutMachine = (services: CheckoutServices) =>
             validDiscountCoupon: {},
 
             inValidDiscountCoupon: {},
+
+            fetchingAddressesModalError: {},
           },
           on: {
             PROCEED: 'finalize',
+
+            GO_TO_MY_ADDRESSES: 'fetchingAddresses',
           },
         },
+
+        fetchingAddresses: {
+          invoke: {
+            src: 'fetchAddresses',
+            onDone: 'myAddresses',
+            onError: 'orderSummary.fetchingAddressesModalError',
+          },
+        },
+
+        myAddresses: {},
 
         finalize: {},
       },
@@ -58,16 +73,4 @@ export const createCheckoutMachine = (services: CheckoutServices) =>
 /*
 TO-DO: 
 Implement action to store discount Coupon on context
-
-Implement next states:
-
-fetchingAddresses: {
-  invoke: {
-    src: 'fetchAddresses',
-    onDone: 'myAddresses',
-    onError: 'orderSummary.fetchingAddressesModalError',
-  },
-},
-
-myAddresses: {},
 */
