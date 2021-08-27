@@ -1,10 +1,12 @@
-import { createMachine } from 'xstate'
+import { createMachine, assign } from 'xstate'
 
-// import {
-//   CheckoutContext,
-//   CheckoutEvent,
-//   CheckoutState,
-// } from '../types/checkout'
+import {
+  ApplyDiscountCoupon,
+  CheckoutContext,
+  // CheckoutEvent,
+  // CheckoutState,
+  // ApplyDiscountCoupon,
+} from '../types/checkout'
 
 type CheckoutServices = {
   validateDiscountCoupon: () => Promise<any>
@@ -12,20 +14,23 @@ type CheckoutServices = {
 }
 
 export const createCheckoutMachine = (services: CheckoutServices) =>
-  createMachine(
+  createMachine<CheckoutContext>(
     {
       id: 'checkoutMachine',
       initial: 'orderSummary',
-      // context: {
-      //   discountCoupon: null,
-      // },
+      context: {
+        discountCoupon: null,
+      },
       states: {
         orderSummary: {
           initial: 'discountCouponNotEntered',
           states: {
             discountCouponNotEntered: {
               on: {
-                APPLY_DISCOUNT_COUPON: 'validatingDiscountCoupon',
+                APPLY_DISCOUNT_COUPON: {
+                  target: 'validatingDiscountCoupon',
+                  actions: 'registerDiscountCoupon',
+                },
               },
             },
 
@@ -40,8 +45,6 @@ export const createCheckoutMachine = (services: CheckoutServices) =>
             validDiscountCoupon: {},
 
             inValidDiscountCoupon: {},
-
-            fetchingAddressesModalError: {},
           },
           on: {
             PROCEED: 'finalize',
@@ -54,9 +57,11 @@ export const createCheckoutMachine = (services: CheckoutServices) =>
           invoke: {
             src: 'fetchAddresses',
             onDone: 'myAddresses',
-            onError: 'orderSummary.fetchingAddressesModalError',
+            onError: 'fetchingAddressesError',
           },
         },
+
+        fetchingAddressesError: {},
 
         myAddresses: {},
 
@@ -64,13 +69,14 @@ export const createCheckoutMachine = (services: CheckoutServices) =>
       },
     },
     {
+      actions: {
+        registerDiscountCoupon: assign<CheckoutContext, ApplyDiscountCoupon>({
+          discountCoupon: (_context: any, event: { discountCoupon: string }) =>
+            event.discountCoupon,
+        }),
+      },
       services: {
         ...services,
       },
     }
   )
-
-/*
-TO-DO: 
-Implement action to store discount Coupon on context
-*/

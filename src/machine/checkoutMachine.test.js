@@ -2,6 +2,15 @@ import { createModel } from '@xstate/test'
 import { createMachine, assign, StateMachine, State } from 'xstate'
 import { createCheckoutMachine } from './checkoutMachine'
 
+const executeActions = (state) => {
+  const { actions, context, _event } = state
+
+  actions.forEach((action) => {
+    // eslint-disable-next-line no-unused-expressions
+    action.exec && action.exec(context, _event.data, undefined)
+  })
+}
+
 const eventConfigs = {
   PROCEED: {
     exec: async ({
@@ -36,6 +45,7 @@ const eventConfigs = {
       setCurrentState(
         stateMachine.transition(currentState, {
           type: 'APPLY_DISCOUNT_COUPON',
+          discountCoupon: 'CupomDeTeste',
         })
       )
     },
@@ -168,17 +178,23 @@ const orderSummary_inValidDiscountCoupon_test = {
   },
 }
 
-const orderSummary_fetchingAddressesModalError_test = {
-  test: ({ shared: { currentState } }) => {
-    expect(currentState.value).toMatchObject({
-      orderSummary: 'fetchingAddressesModalError',
-    })
-  },
-}
+// const orderSummary_fetchingAddressesModalError_test = {
+//   test: ({ shared: { currentState } }) => {
+//     expect(currentState.value).toMatchObject({
+//       orderSummary: 'fetchingAddressesModalError',
+//     })
+//   },
+// }
 
 const fetchingAddressesTest = {
   test: ({ shared: { currentState } }) => {
     expect(currentState.value).toBe('fetchingAddresses')
+  },
+}
+
+const fetchingAddressesErrorTest = {
+  test: ({ shared: { currentState } }) => {
+    expect(currentState.value).toBe('fetchingAddressesError')
   },
 }
 
@@ -220,15 +236,15 @@ describe('Checkout Machine', () => {
 
         orderSummary_inValidDiscountCoupon: {},
 
-        orderSummary_fetchingAddressesModalError: {},
-
         fetchingAddresses: {
           invoke: {
             src: 'fetchAddresses',
             onDone: 'myAddresses',
-            onError: 'orderSummary_fetchingAddressesModalError',
+            onError: 'fetchingAddressesError',
           },
         },
+
+        fetchingAddressesError: {},
 
         myAddresses: {},
 
@@ -252,8 +268,8 @@ describe('Checkout Machine', () => {
       ...orderSummary_inValidDiscountCoupon_test,
     }
 
-    testMachine.states.orderSummary_fetchingAddressesModalError.meta = {
-      ...orderSummary_fetchingAddressesModalError_test,
+    testMachine.states.fetchingAddressesError.meta = {
+      ...fetchingAddressesErrorTest,
     }
 
     testMachine.states.fetchingAddresses.meta = {
@@ -287,6 +303,7 @@ describe('Checkout Machine', () => {
             const shared = { currentState: stateMachine.initialState }
 
             const setCurrentState = (state) => {
+              executeActions(state)
               shared.currentState = state
             }
 
